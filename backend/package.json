@@ -1,0 +1,45 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon server.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "axios": "^1.13.2",
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
+    "csv-parse": "^6.1.0",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "express-session": "^1.18.2",
+    "geoip-lite": "^1.4.10",
+    "ioredis": "^5.8.2",
+    "jsonwebtoken": "^9.0.3",
+    "juice": "^11.1.0",
+    "morgan": "^1.10.1",
+    "multer": "^2.0.2",
+    "mysql2": "^3.15.3",
+    "nanoid": "^5.1.6",
+    "node-cron": "^4.2.1",
+    "nodemailer": "^7.0.11",
+    "on-finished": "^2.4.1",
+    "sanitize-html": "^2.17.0",
+    "sequelize": "^6.37.7",
+    "swagger-autogen": "^2.23.7",
+    "swagger-ui-express": "^5.0.1",
+    "twilio": "^5.11.2",
+    "ua-parser-js": "^2.0.8",
+    "winston": "^3.19.0",
+    "winston-daily-rotate-file": "^5.0.0",
+    "xlsx": "^0.18.5",
+    "xml2js": "^0.6.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
+}
