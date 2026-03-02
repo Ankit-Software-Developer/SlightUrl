@@ -29,6 +29,7 @@ import { baseurl } from "@/utils/constant";
 import Cookies from "js-cookie";
 import { useRouter } from "next/navigation";
 import AlertBox from "@/components/alertbox";
+import Image from "next/image";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -181,12 +182,16 @@ export default function SignupPage() {
           <div className="relative z-10 flex-1">
             {/* Header */}
             <Link href="/" className="inline-flex items-center gap-3 mb-12">
-              <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center">
-                <div className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                  S
-                </div>
+              <div className="w-55 bg-white rounded-xl flex items-center justify-center">
+                <Image
+                  src="/logo1.png" // <-- put your logo in /public/logo.png
+                  alt="SlightURL"
+                  width={300}
+                  height={80}
+                  className="h-20 w-45 object-contain"
+                  priority
+                />
               </div>
-              <span className="text-2xl font-bold text-white">SlightURL</span>
             </Link>
 
             {/* Main Content */}

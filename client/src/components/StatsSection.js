@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 const stats = [
   { label: "Links Shortened", value: "10M+", color: "from-blue-500 to-cyan-500" },
   { label: "Active Users", value: "50K+", color: "from-purple-500 to-pink-500" },
-  { label: "Revenue Generated", value: "$1M+", color: "from-green-500 to-emerald-500" },
+  { label: "Revenue Generated", value: "Free", color: "from-green-500 to-emerald-500" },
   { label: "Ad CTR", value: "3.2%", color: "from-amber-500 to-orange-500" },
 ];
 

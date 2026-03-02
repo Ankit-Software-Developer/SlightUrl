@@ -60,7 +60,7 @@ const testimonials = [
     role: "Non-Profit Director",
     company: "HopeFoundation",
     avatar: "JW",
-    rating: 5,
+    rating: 3,
     content: "Even our non-profit benefits from the free tier. The analytics help us understand our donor engagement better.",
     revenue: "+300% Donations",
     color: "from-red-500 to-rose-500",
@@ -72,7 +72,7 @@ const testimonials = [
     role: "Agency Owner",
     company: "DigitalPeak",
     avatar: "LP",
-    rating: 5,
+    rating: 4,
     content: "Client reporting became 10x easier. The export features and white-label options are perfect for our agency.",
     revenue: "+25 Clients",
     color: "from-indigo-500 to-blue-500",
@@ -270,7 +270,7 @@ export default function Testimonials() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               <div className="text-center">
                 <div className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                  4.9/5
+                  4.6/5
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400 mt-2">
                   Average Rating
@@ -278,7 +278,7 @@ export default function Testimonials() {
               </div>
               <div className="text-center">
                 <div className="text-3xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                  98%
+                  94%
                 </div>
                 <div className="text-sm text-gray-600 dark:text-gray-400 mt-2">
                   Customer Satisfaction

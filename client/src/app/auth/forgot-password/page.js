@@ -9,6 +9,7 @@ import Input from "@/components/Input";
 import Button from "@/components/Button";
 import axios from "axios";
 import { baseurl } from "@/utils/constant";
+import Image from "next/image";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -78,14 +79,15 @@ export default function ForgotPasswordPage() {
               className="flex items-center justify-center gap-3"
             >
               <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl blur" />
-                <div className="relative h-12 w-12 grid place-items-center rounded-xl bg-gradient-to-r from-blue-600 to-purple-700 text-white font-bold text-2xl">
-                  S
-                </div>
+                <Image
+                  src="/logo1.png" // <-- put your logo in /public/logo.png
+                  alt="SlightURL"
+                  width={300}
+                  height={80}
+                  className="h-20 w-55 mr-3 object-contain"
+                  priority
+                />
               </div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                SlightURL
-              </h1>
             </motion.div>
           </Link>
           <p className="text-gray-600 dark:text-gray-400 mt-2">

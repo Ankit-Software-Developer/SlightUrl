@@ -31,7 +31,15 @@ import {
   KeyRound,
   Mail,
 } from "lucide-react";
-
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from "recharts";
 // NOTE: Update these imports to your project paths
 import Card from "@/components/Card";
 import Button from "@/components/Button";
@@ -40,8 +48,13 @@ import Input from "@/components/Input";
 
 import { AdPlacement, SidebarAd } from "@/components/AdSlots";
 import axios from "axios";
+import QRCode from "qrcode";
 import { baseurl } from "@/utils/constant";
 import Cookies from "js-cookie";
+import { DataGrid } from "@mui/x-data-grid";
+import Box from "@mui/material/Box";
+import Image from "next/image";
+import Link from "next/link";
 
 /* -------------------- Mock Data -------------------- */
 const mockUser = {
@@ -176,12 +189,136 @@ function LockedFeature({ title, description, onUpgrade }) {
   );
 }
 
+function normalizeLink(link) {
+  const codeOrAlias = link.alais || link.code;
+  const domain = link.domain || `${baseurl}`;
+  console.log(link);
+  console.log(domain);
+  return {
+    id: link.id,
+    shortUrl: link.shortUrl || `${domain}${codeOrAlias}`, // UI expects string WITHOUT https
+    originalUrl: link.longUrl || link.originalUrl || "",
+    clicks: Number(link.clicks || 0),
+    createdAt: link.createdAt || link.created_at || "",
+    status: link.isActive ? "active" : "inactive",
+    tags: Array.isArray(link.tags) ? link.tags : [], // fallback
+  };
+}
+const pad2 = (n) => String(n).padStart(2, "0");
+
+function formatDateTime(value) {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  return `${d.getFullYear()}/${pad2(d.getMonth() + 1)}/${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+const fmt = (n) => Number(n || 0).toLocaleString();
+
+function fullShortUrl(shortUrl) {
+  // shortUrl in UI is "domain/code" (without https)
+  if (!shortUrl) return "";
+  if (shortUrl.startsWith("http://") || shortUrl.startsWith("https://"))
+    return shortUrl;
+  return `https://${shortUrl}`;
+}
+function isValidUrl(url) {
+  try {
+    new URL(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+const niceLabel = (s) => (s && String(s).trim() ? String(s) : "Unknown");
+
+function sumClicks(series = []) {
+  return series.reduce((a, b) => a + Number(b?.clicks || 0), 0);
+}
+
+function formatShortDate(value) {
+  // expects "YYYY-MM-DD"
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}`;
+}
+
+function AnalyticsTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  const clicks = payload[0]?.value ?? 0;
+  return (
+    <div className="rounded-xl bg-white/95 p-3 text-xs shadow-lg ring-1 ring-slate-200 dark:bg-slate-950/95 dark:ring-slate-800">
+      <div className="font-extrabold text-slate-900 dark:text-white">
+        {label}
+      </div>
+      <div className="mt-1 text-slate-600 dark:text-slate-300">
+        Clicks: <span className="font-extrabold">{fmt(clicks)}</span>
+      </div>
+    </div>
+  );
+}
+
+// Reusable list card with progress bars (Referrers / Devices / Countries)
+function RankCard({ title, items = [], labelKey, valueKey = "clicks" }) {
+  const max = Math.max(
+    1,
+    ...(Array.isArray(items)
+      ? items.map((x) => Number(x?.[valueKey] || 0))
+      : [1]),
+  );
+
+  return (
+    <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200 dark:bg-slate-900/40 dark:ring-slate-800">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="text-sm font-extrabold">{title}</div>
+        <div className="text-xs font-bold text-slate-500 dark:text-slate-300">
+          Top {Math.min(items.length || 0, 5)}
+        </div>
+      </div>
+
+      {!items?.length ? (
+        <div className="py-8 text-center text-sm text-slate-500 dark:text-slate-300">
+          No data
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {items.slice(0, 5).map((it, idx) => {
+            const label = niceLabel(it?.[labelKey]);
+            const val = Number(it?.[valueKey] || 0);
+            const pct = Math.round((val / max) * 100);
+
+            return (
+              <div key={`${label}-${idx}`} className="space-y-1">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 text-sm font-semibold">
+                    <span className="truncate">{label}</span>
+                  </div>
+                  <div className="shrink-0 text-sm font-extrabold">
+                    {fmt(val)}
+                  </div>
+                </div>
+
+                <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                  <div
+                    className="h-2 rounded-full bg-gradient-to-r from-blue-600 to-purple-600"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 /* -------------------- Page -------------------- */
 export default function DashboardPage() {
   const token = Cookies.get("slightUrl_token");
   const [user, setUser] = useState(mockUser);
   const [links, setLinks] = useState(mockLinks);
-  const [analytics] = useState(mockAnalytics);
+  const [analytics, setanalytics] = useState(mockAnalytics);
 
   // default active tab: free -> overview
   const [activeTab, setActiveTab] = useState("overview");
@@ -194,6 +331,36 @@ export default function DashboardPage() {
   const [devToken, setDevToken] = useState("");
   const [listkeys, setlistkeys] = useState([]);
   const [tokenRevealed, setTokenRevealed] = useState(false);
+
+  const [qrOpen, setQrOpen] = useState(false);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState("");
+  const [qrForUrl, setQrForUrl] = useState("");
+
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [selectedLink, setSelectedLink] = useState(null);
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createErr, setCreateErr] = useState("");
+
+  const [formLongUrl, setFormLongUrl] = useState("");
+  const [formAlias, setFormAlias] = useState("");
+  const [formExpiresAt, setFormExpiresAt] = useState("");
+  const [reportDays, setReportDays] = useState(30);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportData, setReportData] = useState({
+    totalClicks: 0,
+    series: [],
+    topReferrers: [],
+    devices: [],
+    topCountries: [],
+    range: null,
+  });
+  const [paginationModel, setPaginationModel] = useState({
+    page: 0,
+    pageSize: 10,
+  });
 
   const fetchuserDetails = async () => {
     try {
@@ -218,6 +385,108 @@ export default function DashboardPage() {
       setIsLoading(false);
     }
   };
+  const fetchLinks = async () => {
+    try {
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
+
+      const res = await axios.get(`${baseurl}api/links/user`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      console.log(res);
+      if (res.status === 200) {
+        setLinks((res.data.links || []).map(normalizeLink));
+        // setUser(res.data.user);
+      }
+    } catch (err) {
+      console.log(err);
+      setUser(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchSummary = async () => {
+    try {
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
+
+      const res = await axios.get(`${baseurl}api/analytics/summary`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      console.log(res);
+      if (res.status === 200) {
+        setanalytics(res.data);
+      }
+    } catch (err) {
+      console.log(err);
+      setUser(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  const fetchReport = async (days = reportDays) => {
+    try {
+      if (!token) return;
+      setReportLoading(true);
+
+      const res = await axios.get(`${baseurl}api/analytics/report`, {
+        params: { days },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const d = res?.data || {};
+      setReportData({
+        totalClicks: Number(d.totalClicks || 0),
+        series: Array.isArray(d.series) ? d.series : [],
+        topReferrers: Array.isArray(d.topReferrers) ? d.topReferrers : [],
+        devices: Array.isArray(d.devices) ? d.devices : [],
+        topCountries: Array.isArray(d.topCountries) ? d.topCountries : [],
+        range: d.range || null,
+      });
+    } catch (e) {
+      console.log(e);
+      setReportData({
+        totalClicks: 0,
+        series: [],
+        topReferrers: [],
+        devices: [],
+        topCountries: [],
+        range: null,
+      });
+    } finally {
+      setReportLoading(false);
+    }
+  };
+  async function exportAnalyticsCsv() {
+    try {
+      const res = await axios.get(`${baseurl}api/analytics/export`, {
+        params: { days: 30 }, // 1 year
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: "blob",
+      });
+
+      const blob = new Blob([res.data], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `analytics_1year.csv`; // ✅ MUST be .csv
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+    } catch (e) {
+      console.log(e);
+      alert("Export failed");
+    }
+  }
   const GetAPIkeys = async () => {
     try {
       if (!token) return;
@@ -237,8 +506,13 @@ export default function DashboardPage() {
   };
   useEffect(() => {
     fetchuserDetails();
+    fetchLinks();
+    fetchSummary();
     GetAPIkeys();
   }, []);
+  useEffect(() => {
+    if (activeTab === "analytics") fetchReport(reportDays);
+  }, [activeTab, reportDays]);
 
   function tokenPrefixForPlan(plan) {
     // visually + logically different
@@ -345,15 +619,47 @@ export default function DashboardPage() {
       note: "Business API has the highest limits and advanced endpoints.",
     };
   }, [user.plan]);
+
   const filteredLinks = useMemo(() => {
-    const q = searchTerm.toLowerCase();
-    return links.filter(
-      (link) =>
-        link.shortUrl.toLowerCase().includes(q) ||
-        link.originalUrl.toLowerCase().includes(q) ||
-        link.tags.some((tag) => tag.toLowerCase().includes(q)),
-    );
+    const q = (searchTerm || "").toLowerCase();
+
+    return (links || []).filter((link) => {
+      const shortUrl = (link.shortUrl || "").toLowerCase();
+      const originalUrl = (link.originalUrl || "").toLowerCase();
+      const tags = Array.isArray(link.tags) ? link.tags : [];
+
+      return (
+        shortUrl.includes(q) ||
+        originalUrl.includes(q) ||
+        tags.some((tag) => (tag || "").toLowerCase().includes(q))
+      );
+    });
   }, [links, searchTerm]);
+
+  async function openQrModal(link) {
+    try {
+      const url = fullShortUrl(link.shortUrl);
+      if (!url) return alert("Short URL not found");
+
+      setQrForUrl(url);
+      setQrOpen(true);
+      setQrLoading(true);
+
+      const pngDataUrl = await QRCode.toDataURL(url, {
+        width: 256,
+        margin: 1,
+        errorCorrectionLevel: "M",
+      });
+
+      setQrDataUrl(pngDataUrl);
+    } catch (e) {
+      console.log(e);
+      alert("Failed to generate QR");
+      setQrOpen(false);
+    } finally {
+      setQrLoading(false);
+    }
+  }
 
   function safeSetTab(tab) {
     // Free gating: allow only a subset
@@ -477,6 +783,235 @@ export default function DashboardPage() {
       />
     </svg>
   );
+
+  function openDetailsModal(link) {
+    setSelectedLink(link);
+    setDetailsOpen(true);
+  }
+
+  function csvEscape(value) {
+    const s = String(value ?? "");
+    // escape quotes
+    const escaped = s.replace(/"/g, '""');
+    // wrap always (safe for commas/newlines)
+    return `"${escaped}"`;
+  }
+
+  async function exportLinksCsv() {
+    try {
+      // choose which links to export:
+      const rows = filteredLinks; // or use links for all links
+
+      if (!rows.length) return alert("No links to export.");
+
+      // Generate QR data URLs (optional, but you asked to include qrcode in csv)
+      const qrList = await Promise.all(
+        rows.map(async (l) => {
+          try {
+            const url = fullShortUrl(l.shortUrl);
+            return await QRCode.toDataURL(url, { width: 180, margin: 1 });
+          } catch {
+            return "";
+          }
+        }),
+      );
+
+      const header = [
+        "Short URL",
+        "Long URL",
+        "Clicks",
+        "Created",
+        "Status",
+        "QR Code (PNG DataURL)",
+      ];
+      const csvLines = [header.map(csvEscape).join(",")];
+
+      rows.forEach((l, i) => {
+        const line = [
+          fullShortUrl(l.shortUrl),
+          l.originalUrl || "",
+          Number(l.clicks || 0),
+          formatDateTime(l.createdAt),
+          l.status || "",
+          qrList[i] || "",
+        ];
+        csvLines.push(line.map(csvEscape).join(","));
+      });
+
+      const csv = csvLines.join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+
+      const now = new Date();
+      const filename = `links_${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}_${pad2(now.getHours())}${pad2(now.getMinutes())}.csv`;
+
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+    } catch (e) {
+      console.log(e);
+      alert("Export failed");
+    }
+  }
+
+  async function createLink() {
+    try {
+      setCreateErr("");
+
+      const longUrl = formLongUrl.trim();
+      const alias = formAlias.trim();
+      const expiresAt = formExpiresAt
+        ? new Date(formExpiresAt).toISOString()
+        : null;
+
+      if (!longUrl) return setCreateErr("Long URL is required.");
+      if (!isValidUrl(longUrl))
+        return setCreateErr("Please enter a valid URL (https://...).");
+
+      setCreating(true);
+
+      const payload = {
+        longUrl,
+        ...(alias ? { alias } : {}),
+        ...(expiresAt ? { expiresAt } : {}),
+      };
+
+      const res = await axios.post(`${baseurl}api/links/user/create`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      // success
+      setCreateOpen(false);
+      setFormLongUrl("");
+      setFormAlias("");
+      setFormExpiresAt("");
+
+      // refresh lists
+      await Promise.all([fetchLinks(), fetchSummary()]);
+    } catch (e) {
+      console.log(e);
+      const msg =
+        e?.response?.data?.message ||
+        e?.response?.data?.error ||
+        e?.message ||
+        "Failed to create link";
+      setCreateErr(msg);
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  const columns = [
+    {
+      field: "sr",
+      headerName: "Sr.No",
+      width: 60,
+      sortable: false,
+      filterable: false,
+      disableColumnMenu: true,
+      align: "left",
+      headerAlign: "left",
+      renderCell: (params) => {
+        // pagination-based serial number
+        const indexOnPage = params.api.getRowIndexRelativeToVisibleRows(
+          params.id,
+        );
+        return (
+          paginationModel.page * paginationModel.pageSize + indexOnPage + 1
+        );
+      },
+    },
+    {
+      field: "shortUrl",
+      headerName: "Short URL",
+      flex: 1,
+      minWidth: 260,
+      sortable: false,
+      renderCell: (params) => (
+        <div className="min-w-0">
+          <a
+            href={fullShortUrl(params.value)}
+            target="_blank"
+            rel="noreferrer"
+            className="font-extrabold text-blue-600 hover:underline dark:text-blue-400"
+          >
+            {params.value}
+          </a>
+          <div className="max-w-[520px] truncate text-xs text-slate-500 dark:text-slate-300">
+            {params.row.originalUrl}
+          </div>
+        </div>
+      ),
+    },
+    {
+      field: "clicks",
+      headerName: "Clicks",
+      width: 120,
+      renderCell: (p) => fmt(p.value),
+    },
+    {
+      field: "createdAt",
+      headerName: "Created",
+      width: 180,
+      renderCell: (p) => formatDateTime(p.value),
+    },
+    {
+      field: "status",
+      headerName: "Status",
+      width: 130,
+      renderCell: (params) => (
+        <Badge tone={params.value === "active" ? "emerald" : "slate"}>
+          {params.value}
+        </Badge>
+      ),
+    },
+    {
+      field: "actions",
+      headerName: "Actions",
+      width: 170,
+      sortable: false,
+      filterable: false,
+      renderCell: (params) => (
+        <div className="flex items-center gap-2">
+          <button
+            className="rounded-lg p-2 hover:bg-slate-200 dark:hover:bg-slate-700"
+            onClick={() => openDetailsModal(params.row)}
+            title="View details"
+          >
+            <Eye className="h-4 w-4" />
+          </button>
+
+          <button
+            className="rounded-lg p-2 hover:bg-slate-200 dark:hover:bg-slate-700"
+            onClick={() => openQrModal(params.row)}
+            title="QR Code"
+          >
+            <QrCode className="h-4 w-4" />
+          </button>
+
+          <button
+            className="rounded-lg p-2 text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-900/20"
+            onClick={() => deleteLink(params.row.id)}
+            title="Delete"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      ),
+    },
+  ];
+  const border =
+    // isDark ? "rgb(30 41 59)" :
+    "rgb(226 232 240)";
+  const hover =
+    // isDark ? "rgba(148,163,184,0.08)" :
+    "rgba(15,23,42,0.04)";
+  const textMuted =
+    // isDark ? "rgb(148 163 184)" :
+    "rgb(100 116 139)";
   const currentPlan = normalizePlan(user.plan);
   const paid = isPaid(currentPlan);
   const planMaxLinks = planFeatures[currentPlan].maxLinks;
@@ -530,10 +1065,18 @@ export default function DashboardPage() {
         <div className="mx-auto max-w-7xl px-4">
           <div className="flex h-16 items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-r from-blue-600 to-purple-600">
-                <span className="text-sm font-extrabold text-white">S</span>
-              </div>
-              <h1 className="text-xl font-extrabold">slightURL</h1>
+              <Link href="/" className="group flex items-center gap-3">
+                <div className="relative">
+                  <Image
+                    src="/logo1.png" // <-- put your logo in /public/logo.png
+                    alt="SlightURL"
+                    width={300}
+                    height={80}
+                    className="h-20 w-45 object-contain"
+                    priority
+                  />
+                </div>
+              </Link>
               <Badge tone={toneForPlan(user.plan)}>
                 {user.plan.charAt(0).toUpperCase() + user.plan.slice(1)}
               </Badge>
@@ -613,7 +1156,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Usage */}
-              <div className="mt-8 border-t border-slate-200 pt-6 dark:border-slate-800">
+              {/* <div className="mt-8 border-t border-slate-200 pt-6 dark:border-slate-800">
                 <div className="mb-3 flex items-center justify-between">
                   <span className="text-sm font-semibold">Plan Usage</span>
                   <span className="text-sm text-slate-500 dark:text-slate-300">
@@ -635,11 +1178,11 @@ export default function DashboardPage() {
                     ? "Upgrade for higher limits + premium features."
                     : "Usage this month."}
                 </p>
-              </div>
+              </div> */}
             </Card>
 
             {/* Quick Stats */}
-            <Card className="p-6">
+            {/* <Card className="p-6">
               <h3 className="mb-4 text-sm font-extrabold">Quick Stats</h3>
               <div className="space-y-3 text-sm">
                 <div className="flex items-center justify-between">
@@ -662,14 +1205,14 @@ export default function DashboardPage() {
                   </span>
                   <span className="font-extrabold">{user.conversionRate}%</span>
                 </div>
-                <div className="flex items-center justify-between">
+                {/* <div className="flex items-center justify-between">
                   <span className="text-slate-600 dark:text-slate-300">
                     Credits
                   </span>
                   <span className="font-extrabold">{user.credits}</span>
-                </div>
-              </div>
-            </Card>
+                </div> */}
+            {/* </div>
+            </Card> */}
 
             {/* Sidebar Ad (best for Free) */}
             {!planFeatures[currentPlan].adFree && <SidebarAd />}
@@ -711,7 +1254,7 @@ export default function DashboardPage() {
 
               {/* Search + Create */}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                {(activeTab === "links" || activeTab === "overview") && (
+                {/* {(activeTab === "links" || activeTab === "overview") && (
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                     <Input
@@ -721,22 +1264,22 @@ export default function DashboardPage() {
                       className="pl-10"
                     />
                   </div>
-                )}
+                )} */}
 
                 {(activeTab === "links" || activeTab === "overview") && (
                   <Button
                     onClick={() => {
-                      if (
-                        user.plan === "free" &&
-                        links.length >= planFeatures.free.maxLinks
-                      ) {
-                        alert(
-                          `Free plan limited to ${planFeatures.free.maxLinks} links. Upgrade to Pro for more.`,
-                        );
-                        setShowUpgradeModal(true);
-                        return;
-                      }
-                      alert("Create link modal (demo)");
+                      // if (
+                      //   user?.plan === "free" &&
+                      //   links.length >= planFeatures.free.maxLinks
+                      // ) {
+                      //   alert(
+                      //     `Free plan limited to ${planFeatures.free.maxLinks} links. Upgrade to Pro for more.`,
+                      //   );
+                      // setShowUpgradeModal(true);
+                      // return;
+                      // }
+                      setCreateOpen(true);
                     }}
                     className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
                   >
@@ -771,7 +1314,7 @@ export default function DashboardPage() {
                           Total Clicks
                         </p>
                         <p className="text-2xl font-extrabold">
-                          {analytics.totalClicks.toLocaleString()}
+                          {analytics.totalClicks}
                         </p>
                       </div>
                       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/30">
@@ -806,14 +1349,14 @@ export default function DashboardPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-slate-500 dark:text-slate-300">
-                          Unique Visitors
+                          Total Links
                         </p>
                         <p className="text-2xl font-extrabold">
-                          {analytics.uniqueVisitors.toLocaleString()}
+                          {analytics.totalLinks}
                         </p>
                       </div>
                       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-100 dark:bg-purple-900/30">
-                        <Users className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                        <TrendingUp className="h-6 w-6 text-purple-600 dark:text-purple-400" />
                       </div>
                     </div>
                     <div className="mt-4 text-sm text-emerald-600 dark:text-emerald-400">
@@ -828,7 +1371,7 @@ export default function DashboardPage() {
                           Active Links
                         </p>
                         <p className="text-2xl font-extrabold">
-                          {links.length}
+                          {analytics.activeLinks}
                         </p>
                       </div>
                       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/30">
@@ -838,7 +1381,7 @@ export default function DashboardPage() {
                     <div className="mt-4 text-sm text-slate-500 dark:text-slate-300">
                       {planMaxLinks === "Unlimited"
                         ? "Unlimited"
-                        : `${links.length}/${planMaxLinks}`}
+                        : `${analytics.activeLinks}/${links.length}`}
                     </div>
                   </Card>
                 </div>
@@ -890,7 +1433,10 @@ export default function DashboardPage() {
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <button className="rounded-lg p-2 hover:bg-slate-200 dark:hover:bg-slate-700">
+                          <button
+                            className="rounded-lg p-2 hover:bg-slate-200 dark:hover:bg-slate-700"
+                            onClick={() => openDetailsModal(link)}
+                          >
                             <Eye className="h-4 w-4" />
                           </button>
                           <button className="rounded-lg p-2 hover:bg-slate-200 dark:hover:bg-slate-700">
@@ -912,35 +1458,36 @@ export default function DashboardPage() {
 
             {/* LINKS */}
             {activeTab === "links" && (
-              <Card className="p-6">
+              <Card className="p-3">
                 <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="text-lg font-extrabold">
                       All Links ({filteredLinks.length})
                     </h3>
-                    <Button
+                    {/* <Button
                       variant="secondary"
                       onClick={() => alert("Filter (demo)")}
                     >
                       <Filter className="mr-2 h-4 w-4" />
                       Filter
-                    </Button>
+                    </Button>*/}
 
                     <Button
                       variant="secondary"
-                      onClick={() =>
-                        paid
-                          ? alert("Export (demo)")
-                          : setShowUpgradeModal(true)
-                      }
+                      // onClick={() =>
+                      //   paid
+                      //     ? alert("Export (demo)")
+                      //     : setShowUpgradeModal(true)
+                      // }
+                      onClick={exportLinksCsv}
                     >
                       <Download className="mr-2 h-4 w-4" />
                       Export
-                      {!paid && (
-                        <span className="ml-2 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-300">
-                          Pro
-                        </span>
-                      )}
+                      {/* {!paid && ( */}
+                      <span className="ml-2 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-300">
+                        link with QrCode(CSV)
+                      </span>
+                      {/* )} */}
                     </Button>
                   </div>
 
@@ -951,7 +1498,96 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <Box sx={{ height: 520, width: "100%" }}>
+                    <DataGrid
+                      rows={filteredLinks}
+                      columns={columns}
+                      pagination
+                      paginationModel={paginationModel}
+                      onPaginationModelChange={setPaginationModel}
+                      pageSizeOptions={[5, 10, 25, 50]}
+                      disableRowSelectionOnClick
+                      hideFooterSelectedRowCount
+                      disableColumnMenu
+                      disableColumnFilter
+                      disableDensitySelector
+                      getRowHeight={() => 72}
+                      sx={{
+                        border: "none",
+                        bgcolor: "transparent",
+                        color: "inherit",
+                        fontFamily: "inherit",
+                        fontSize: "0.875rem",
+
+                        "& .MuiDataGrid-columnHeaders": {
+                          borderBottom: `1px solid ${border}`,
+                          backgroundColor: "transparent",
+                          minHeight: 48,
+                          maxHeight: 48,
+                        },
+                        "& .MuiDataGrid-columnHeaderTitle": {
+                          fontWeight: 800,
+                        },
+                        "& .MuiDataGrid-columnSeparator": { display: "none" },
+
+                        "& .MuiDataGrid-row": {
+                          borderBottom: `1px solid ${border}`,
+                        },
+                        "& .MuiDataGrid-row:hover": {
+                          backgroundColor: hover,
+                        },
+                        "& .MuiDataGrid-cell": {
+                          borderBottom: "none",
+                          padding: "12px 16px",
+                          alignItems: "center",
+                        },
+
+                        "& .MuiDataGrid-cell:focus, & .MuiDataGrid-columnHeader:focus":
+                          {
+                            outline: "none",
+                          },
+                        "& .MuiDataGrid-cell:focus-within, & .MuiDataGrid-columnHeader:focus-within":
+                          {
+                            outline: "none",
+                          },
+
+                        "& .MuiDataGrid-footerContainer": {
+                          borderTop: `1px solid ${border}`,
+                          minHeight: 52,
+                        },
+
+                        // "& .MuiTablePagination-root": {
+                        //   color: "inherit",
+                        // },
+                        // "& .MuiTablePagination-toolbar": {
+                        //   paddingLeft: 12,
+                        //   paddingRight: 12,
+                        //   minHeight: 52,
+                        // },
+                        // "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows":
+                        //   {
+                        //     fontSize: "0.75rem",
+                        //     color: textMuted,
+                        //     fontWeight: 700,
+                        //   },
+                        // "& .MuiTablePagination-select": {
+                        //   fontSize: "0.75rem",
+                        //   fontWeight: 800,
+                        // },
+
+                        // "& .MuiTablePagination-actions .MuiIconButton-root": {
+                        //   borderRadius: 12,
+                        //   border: `1px solid ${border}`,
+                        //   marginLeft: 6,
+                        // },
+                        // "& .MuiTablePagination-actions .MuiIconButton-root:hover":
+                        //   {
+                        //     backgroundColor: hover,
+                        //   },
+                      }}
+                    />
+                  </Box>
+                  {/* <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-200 text-left dark:border-slate-800">
                         <th className="py-3 pr-4">Short URL</th>
@@ -985,7 +1621,9 @@ export default function DashboardPage() {
                           <td className="py-3 pr-4 font-semibold">
                             {link.clicks.toLocaleString()}
                           </td>
-                          <td className="py-3 pr-4">{link.createdAt}</td>
+                          <td className="py-3 pr-4">
+                            {formatDateTime(link.createdAt)}
+                          </td>
                           <td className="py-3 pr-4">
                             <Badge
                               tone={
@@ -997,18 +1635,22 @@ export default function DashboardPage() {
                           </td>
                           <td className="py-3 pr-4">
                             <div className="flex items-center gap-2">
-                              <button className="rounded-lg p-2 hover:bg-slate-200 dark:hover:bg-slate-700">
+                              <button
+                                className="rounded-lg p-2 hover:bg-slate-200 dark:hover:bg-slate-700"
+                                onClick={() => openDetailsModal(link)}
+                              >
                                 <Eye className="h-4 w-4" />
                               </button>
-                              <button className="rounded-lg p-2 hover:bg-slate-200 dark:hover:bg-slate-700">
+                              {/* <button className="rounded-lg p-2 hover:bg-slate-200 dark:hover:bg-slate-700">
                                 <Edit className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() =>
-                                  !paid
-                                    ? setShowUpgradeModal(true)
-                                    : alert("QR (demo)")
-                                }
+                              </button> */}
+                  {/* <button
+                                // onClick={() =>
+                                //   !paid
+                                //     ? setShowUpgradeModal(true)
+                                //     : alert("QR (demo)")
+                                // }
+                                onClick={() => openQrModal(link)}
                                 className="rounded-lg p-2 hover:bg-slate-200 dark:hover:bg-slate-700"
                                 title={
                                   !paid
@@ -1029,7 +1671,7 @@ export default function DashboardPage() {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table>  */}
                 </div>
 
                 {filteredLinks.length === 0 && (
@@ -1058,88 +1700,254 @@ export default function DashboardPage() {
               activeTab === "analytics" && (
                 // (paid ? (
                 <Card className="p-6">
-                  <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-                    <h3 className="text-lg font-extrabold">
-                      Detailed Analytics
-                    </h3>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        variant="secondary"
-                        onClick={() => alert("Date range (demo)")}
-                      >
-                        <Calendar className="mr-2 h-4 w-4" />
-                        Last 30 days
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        onClick={() => alert("Export (demo)")}
-                      >
-                        <Download className="mr-2 h-4 w-4" />
-                        Export Data
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="mb-8 flex h-64 items-center justify-center rounded-2xl bg-gradient-to-r from-blue-50 to-purple-50 dark:from-slate-800 dark:to-slate-900">
-                    <div className="text-center">
-                      <BarChart3 className="mx-auto mb-4 h-12 w-12 text-slate-400" />
-                      <p className="text-sm text-slate-600 dark:text-slate-300">
-                        Replace with real charts later (Recharts/Chart.js).
+                  {/* Header */}
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-lg font-extrabold">Analytics</h3>
+                      <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                        Track clicks, referrers, devices & countries
                       </p>
                     </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* nicer range selector */}
+                      <div className="relative">
+                        <Calendar className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 dark:text-slate-300" />
+
+                        <select
+                          value={reportDays}
+                          onChange={(e) =>
+                            setReportDays(Number(e.target.value))
+                          }
+                          className="h-10 w-full appearance-none rounded-xl border border-slate-200 bg-white pl-10 pr-10 text-sm font-extrabold text-slate-700 shadow-sm outline-none transition hover:bg-slate-50 focus:ring-2 focus:ring-blue-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900"
+                        >
+                          <option value={7}>Last 7 days</option>
+                          <option value={30}>Last 30 days</option>
+                          <option value={90}>Last 90 days</option>
+                        </select>
+
+                        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 dark:text-slate-300" />
+                      </div>
+
+                      <Button
+                        variant="secondary"
+                        onClick={() => fetchReport(reportDays)}
+                      >
+                        Refresh
+                      </Button>
+
+                      <Button variant="secondary" onClick={exportAnalyticsCsv}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Export CSV
+                      </Button>
+                    </div>
                   </div>
 
-                  <div className="grid gap-6 md:grid-cols-3">
-                    <div>
-                      <h4 className="mb-3 font-extrabold">Top Referrers</h4>
-                      <div className="space-y-2 text-sm">
-                        {analytics.topReferrers.map((r) => (
-                          <div
-                            key={r.source}
-                            className="flex items-center justify-between"
-                          >
-                            <span>{r.source}</span>
-                            <span className="font-semibold">
-                              {r.clicks.toLocaleString()}
-                            </span>
-                          </div>
-                        ))}
+                  {/* KPIs */}
+                  <div className="mt-6 grid gap-4 md:grid-cols-4">
+                    <div className="rounded-2xl bg-gradient-to-r from-blue-50 to-purple-50 p-4 ring-1 ring-slate-200 dark:from-blue-900/20 dark:to-purple-900/20 dark:ring-slate-800">
+                      <div className="text-xs font-extrabold text-slate-600 dark:text-slate-300">
+                        Total Clicks
+                      </div>
+                      <div className="mt-2 text-2xl font-extrabold">
+                        {fmt(reportData.totalClicks)}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        last {reportDays} days
                       </div>
                     </div>
 
-                    <div>
-                      <h4 className="mb-3 font-extrabold">Devices</h4>
-                      <div className="space-y-2 text-sm">
-                        {analytics.devices.map((d) => (
-                          <div
-                            key={d.device}
-                            className="flex items-center justify-between"
-                          >
-                            <span>{d.device}</span>
-                            <span className="font-semibold">
-                              {d.percentage}%
-                            </span>
-                          </div>
-                        ))}
+                    <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200 dark:bg-slate-900/40 dark:ring-slate-800">
+                      <div className="text-xs font-extrabold text-slate-600 dark:text-slate-300">
+                        Avg / Day
+                      </div>
+                      <div className="mt-2 text-2xl font-extrabold">
+                        {fmt(
+                          Math.round(
+                            (reportData.totalClicks || 0) /
+                              Math.max(1, reportDays),
+                          ),
+                        )}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        based on range
                       </div>
                     </div>
 
-                    <div>
-                      <h4 className="mb-3 font-extrabold">Top Countries</h4>
-                      <div className="space-y-2 text-sm">
-                        {analytics.topCountries.map((c) => (
-                          <div
-                            key={c.country}
-                            className="flex items-center justify-between"
-                          >
-                            <span>{c.country}</span>
-                            <span className="font-semibold">
-                              {c.clicks.toLocaleString()}
-                            </span>
-                          </div>
-                        ))}
+                    <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200 dark:bg-slate-900/40 dark:ring-slate-800">
+                      <div className="text-xs font-extrabold text-slate-600 dark:text-slate-300">
+                        Top Referrer
+                      </div>
+                      <div className="mt-2 text-lg font-extrabold truncate">
+                        {niceLabel(reportData.topReferrers?.[0]?.source)}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        {fmt(reportData.topReferrers?.[0]?.clicks || 0)} clicks
                       </div>
                     </div>
+
+                    <div className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-200 dark:bg-slate-900/40 dark:ring-slate-800">
+                      <div className="text-xs font-extrabold text-slate-600 dark:text-slate-300">
+                        Top Country
+                      </div>
+                      <div className="mt-2 text-lg font-extrabold truncate">
+                        {niceLabel(reportData.topCountries?.[0]?.country)}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        {fmt(reportData.topCountries?.[0]?.clicks || 0)} clicks
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Chart */}
+                  {/* --- Replace your chart block with this --- */}
+                  <div
+                    className={[
+                      "mt-6 relative overflow-hidden rounded-2xl p-4 ring-1 backdrop-blur",
+                      "bg-white/70 ring-slate-200 dark:bg-slate-900/40 dark:ring-slate-800",
+                      // CSS vars so Recharts colors look good in light + dark
+                      "[--axis:rgb(100_116_139)] [--grid:rgba(148,163,184,0.25)] [--line:rgb(99_102_241)] [--dot:rgb(255_255_255)]",
+                      "dark:[--axis:rgb(148_163_184)] dark:[--grid:rgba(148,163,184,0.14)] dark:[--dot:rgb(15_23_42)]",
+                    ].join(" ")}
+                  >
+                    {/* subtle background glow */}
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-600/10 via-purple-600/5 to-transparent" />
+                    <div className="pointer-events-none absolute -right-10 -top-10 h-44 w-44 rounded-full bg-purple-500/10 blur-2xl" />
+
+                    <div className="relative mb-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 shadow-sm">
+                          <BarChart3 className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                          <div className="text-sm font-extrabold text-slate-900 dark:text-white">
+                            Clicks per day
+                          </div>
+                          <div className="text-xs text-slate-500 dark:text-slate-300">
+                            {reportDays} day trend
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        {/* optional total pill */}
+                        <div className="hidden sm:inline-flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-1 text-xs font-extrabold text-slate-700 ring-1 ring-slate-200 dark:bg-slate-950 dark:text-slate-200 dark:ring-slate-800">
+                          Total:{" "}
+                          {(reportData?.totalClicks ?? 0).toLocaleString()}
+                        </div>
+
+                        {reportLoading && (
+                          <div className="inline-flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-1 text-xs font-bold text-slate-600 ring-1 ring-slate-200 dark:bg-slate-950 dark:text-slate-300 dark:ring-slate-800">
+                            <span className="h-2 w-2 animate-pulse rounded-full bg-blue-600" />
+                            Loading…
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="relative h-72">
+                      {!reportData?.series?.length ? (
+                        <div className="flex h-full items-center justify-center text-sm text-slate-500 dark:text-slate-300">
+                          No chart data
+                        </div>
+                      ) : (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart
+                            data={reportData.series}
+                            margin={{ top: 8, right: 12, left: 0, bottom: 0 }}
+                          >
+                            <defs>
+                              <linearGradient
+                                id="fillClicks"
+                                x1="0"
+                                y1="0"
+                                x2="0"
+                                y2="1"
+                              >
+                                <stop
+                                  offset="5%"
+                                  stopColor="var(--line)"
+                                  stopOpacity={0.35}
+                                />
+                                <stop
+                                  offset="95%"
+                                  stopColor="var(--line)"
+                                  stopOpacity={0.03}
+                                />
+                              </linearGradient>
+                            </defs>
+
+                            <CartesianGrid
+                              stroke="var(--grid)"
+                              strokeDasharray="4 4"
+                              vertical={false}
+                            />
+
+                            <XAxis
+                              dataKey="date"
+                              tickFormatter={formatShortDate}
+                              axisLine={false}
+                              tickLine={false}
+                              tick={{
+                                fill: "var(--axis)",
+                                fontSize: 12,
+                                fontWeight: 700,
+                              }}
+                              tickMargin={10}
+                            />
+
+                            <YAxis
+                              axisLine={false}
+                              tickLine={false}
+                              tick={{
+                                fill: "var(--axis)",
+                                fontSize: 12,
+                                fontWeight: 700,
+                              }}
+                              width={36}
+                            />
+
+                            <Tooltip content={<AnalyticsTooltip />} />
+
+                            <Area
+                              type="monotone"
+                              dataKey="clicks"
+                              stroke="var(--line)"
+                              strokeWidth={2}
+                              fill="url(#fillClicks)"
+                              dot={false}
+                              activeDot={{
+                                r: 5,
+                                stroke: "var(--dot)",
+                                strokeWidth: 2,
+                              }}
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Lists */}
+                  <div className="mt-6 grid gap-6 md:grid-cols-3">
+                    <RankCard
+                      title="Top Referrers"
+                      items={reportData.topReferrers}
+                      labelKey="source"
+                      valueKey="clicks"
+                    />
+                    <RankCard
+                      title="Devices"
+                      items={reportData.devices}
+                      labelKey="device"
+                      valueKey="clicks"
+                    />
+                    <RankCard
+                      title="Top Countries"
+                      items={reportData.topCountries}
+                      labelKey="country"
+                      valueKey="clicks"
+                    />
                   </div>
                 </Card>
               )
@@ -1793,6 +2601,251 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+      {detailsOpen && selectedLink && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <Card className="w-full max-w-lg p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-extrabold">Link Details</h3>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 break-all">
+                  {fullShortUrl(selectedLink.shortUrl)}
+                </p>
+              </div>
+              <button
+                onClick={() => setDetailsOpen(false)}
+                className="rounded-lg px-3 py-1 text-sm font-bold hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3 text-sm">
+              <div>
+                <div className="text-xs font-extrabold text-slate-500">
+                  Long URL
+                </div>
+                <div className="break-all">{selectedLink.originalUrl}</div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-900/40">
+                  <div className="text-xs font-extrabold text-slate-500">
+                    Clicks
+                  </div>
+                  <div className="text-lg font-extrabold">
+                    {fmt(selectedLink.clicks)}
+                  </div>
+                </div>
+                <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-900/40">
+                  <div className="text-xs font-extrabold text-slate-500">
+                    Created
+                  </div>
+                  <div className="font-extrabold">
+                    {formatDateTime(selectedLink.createdAt)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between rounded-xl bg-slate-50 p-3 dark:bg-slate-900/40">
+                <div>
+                  <div className="text-xs font-extrabold text-slate-500">
+                    Status
+                  </div>
+                  <div className="font-extrabold">{selectedLink.status}</div>
+                </div>
+                <Badge
+                  tone={selectedLink.status === "active" ? "emerald" : "slate"}
+                >
+                  {selectedLink.status}
+                </Badge>
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Button
+                  onClick={() =>
+                    window.open(fullShortUrl(selectedLink.shortUrl), "_blank")
+                  }
+                >
+                  Open
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    copyToClipboard(fullShortUrl(selectedLink.shortUrl))
+                  }
+                >
+                  Copy Short URL
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => openQrModal(selectedLink)}
+                >
+                  Show QR
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+      {qrOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <Card className="w-full max-w-md p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-extrabold">QR Code</h3>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 break-all">
+                  {qrForUrl}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setQrOpen(false);
+                  setQrDataUrl("");
+                  setQrForUrl("");
+                }}
+                className="rounded-lg px-3 py-1 text-sm font-bold hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-5 flex items-center justify-center rounded-2xl bg-slate-50 p-6 dark:bg-slate-900/40">
+              {qrLoading ? (
+                <div className="text-sm text-slate-500">Generating QR...</div>
+              ) : qrDataUrl ? (
+                <img src={qrDataUrl} alt="QR code" className="h-56 w-56" />
+              ) : (
+                <div className="text-sm text-slate-500">QR not available</div>
+              )}
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button onClick={() => window.open(qrForUrl, "_blank")}>
+                Open Link
+              </Button>
+
+              <Button
+                variant="secondary"
+                onClick={() => copyToClipboard(qrForUrl)}
+              >
+                Copy Link
+              </Button>
+
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  if (!qrDataUrl) return;
+                  const a = document.createElement("a");
+                  a.href = qrDataUrl;
+                  a.download = "qrcode.png";
+                  a.click();
+                }}
+              >
+                Download PNG
+              </Button>
+            </div>
+
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+              Scan this QR to open the short URL.
+            </p>
+          </Card>
+        </div>
+      )}
+      {createOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <Card className="w-full max-w-lg p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-extrabold">Create Short Link</h3>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                  Paste your long URL and (optionally) set alias & expiry.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setCreateOpen(false);
+                  setCreateErr("");
+                }}
+                className="rounded-lg px-3 py-1 text-sm font-bold hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              {/* Long URL */}
+              <div>
+                <label className="text-xs font-extrabold text-slate-600 dark:text-slate-300">
+                  Long URL *
+                </label>
+                <Input
+                  value={formLongUrl}
+                  onChange={(e) => setFormLongUrl(e.target.value)}
+                  placeholder="https://example.com/very/long/url"
+                />
+              </div>
+
+              {/* Alias */}
+              <div>
+                <label className="text-xs font-extrabold text-slate-600 dark:text-slate-300">
+                  Custom Alias (optional)
+                </label>
+                <Input
+                  value={formAlias}
+                  onChange={(e) => setFormAlias(e.target.value)}
+                  placeholder="my-custom-alias"
+                />
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  If provided, your short link will use this alias (must be
+                  unique).
+                </p>
+              </div>
+
+              {/* Expiry */}
+              <div>
+                <label className="text-xs font-extrabold text-slate-600 dark:text-slate-300">
+                  Expiry (optional)
+                </label>
+                <input
+                  type="datetime-local"
+                  value={formExpiresAt}
+                  onChange={(e) => setFormExpiresAt(e.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 dark:border-slate-800 dark:bg-slate-950"
+                />
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  After expiry, the link can be disabled by backend cleanup.
+                </p>
+              </div>
+
+              {/* Error */}
+              {createErr && (
+                <div className="rounded-xl bg-rose-50 p-3 text-sm font-semibold text-rose-700 dark:bg-rose-900/20 dark:text-rose-300">
+                  {createErr}
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Button onClick={createLink} disabled={creating}>
+                  {creating ? "Creating..." : "Create"}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setFormLongUrl("");
+                    setFormAlias("");
+                    setFormExpiresAt("");
+                    setCreateErr("");
+                  }}
+                  disabled={creating}
+                >
+                  Reset
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

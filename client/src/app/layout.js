@@ -1,17 +1,47 @@
 import "./globals.css";
-import { Inter } from 'next/font/google';
+import { Inter } from "next/font/google";
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "SlightURL — Short links, big insights",
-  description: "SaaS URL shortener with analytics, domains, and responsible monetization. Monetize with dashboard ads and optional light interstitial.",
-  keywords: "URL shortener, link shortener, analytics, monetization, SaaS, ads",
-  openGraph: {
-    title: "SlightURL — Short links, big insights",
-    description: "Professional URL shortener with analytics and responsible monetization",
-    type: "website",
+  title: {
+    default: "SlightURL - Free URL Shortener",
+    template: "%s | SlightURL",
   },
+  description:
+    "Free URL shortener service. Create short links instantly. No registration required for basic shortening.",
+  keywords: "URL shortener, link shortener, free link shortener, short links",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+    },
+  },
+  openGraph: {
+    type: "website",
+    url: "https://slighturl.com",
+    siteName: "SlightURL",
+    title: "SlightURL — Free URL Shortener",
+    description: "Create short links instantly. No registration required.",
+    images: [
+      {
+        url: "https://slighturl.com/og-default.jpg",
+        width: 1200,
+        height: 630,
+        alt: "SlightURL - Free URL Shortener",
+      },
+    ],
+  },
+  alternates: {
+    canonical: "https://slighturl.com",
+  },
+  icons: {
+    icon: [{ url: "/favicon.ico", sizes: "any" }],
+    apple: [{ url: "/apple-icon.png" }],
+  },
+ 
 };
 
 export default function RootLayout({ children }) {
@@ -41,9 +71,7 @@ export default function RootLayout({ children }) {
           }}
         />
       </head>
-      <body className={`${inter.className} antialiased`}>
-        {children}
-      </body>
+      <body className={`${inter.className} antialiased`}>{children}</body>
     </html>
   );
 }

@@ -24,6 +24,8 @@ import { baseurl } from "@/utils/constant";
 
 // Your existing ad slots
 import { AdPlacement, SidebarAd } from "@/components/AdSlots";
+import Image from "next/image";
+import Link from "next/link";
 
 /**
  * Download Page (Ad-heavy monetization layout)
@@ -86,7 +88,6 @@ function prettyFileType(mime = "") {
 
     "text/plain": "Text File",
     "text/csv": "CSV File",
-    "text/html": "HTML File",
 
     "image/jpeg": "Image (JPG)",
     "image/png": "Image (PNG)",
@@ -139,11 +140,9 @@ export default function DownloadPortalPage() {
     setCountdown(3);
   };
   const sp = useSearchParams();
+
   const code = useMemo(() => {
-    // URL format: /download?AbC123  (no key name)
-    // next/searchParams gives keys list; first key is the code
-    const keys = Array.from(sp.keys());
-    return keys[0] || "";
+    return sp.get("code") || "";
   }, [sp]);
 
   useEffect(() => {
@@ -202,15 +201,18 @@ export default function DownloadPortalPage() {
       <div className="border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-950/50">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-r from-blue-600 to-purple-600">
-              <span className="text-sm font-extrabold text-white">S</span>
-            </div>
-            <div className="leading-tight">
-              <div className="text-lg font-extrabold">slightURL</div>
-              <div className="text-xs text-slate-500 dark:text-slate-300">
-                Secure download portal
+            <Link href="/" className="group flex items-center gap-3">
+              <div className="relative">
+                <Image
+                  src="/logo1.png" // <-- put your logo in /public/logo.png
+                  alt="SlightURL"
+                  width={300}
+                  height={80}
+                  className="h-10 w-45 object-contain"
+                  priority
+                />
               </div>
-            </div>
+            </Link>
           </div>
 
           <div className="hidden items-center gap-2 sm:flex">
@@ -294,7 +296,9 @@ export default function DownloadPortalPage() {
                 {loading ? (
                   <div className="p-10 text-center">Loading download…</div>
                 ) : err ? (
-                  <div className="p-10 text-center text-red-600">File not found</div>
+                  <div className="p-10 text-center text-red-600">
+                    File not found
+                  </div>
                 ) : (
                   <div className="relative">
                     <div className="flex flex-wrap items-start justify-between gap-3">

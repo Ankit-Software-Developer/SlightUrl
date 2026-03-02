@@ -362,6 +362,29 @@ export default function PublicHero() {
                   <li>• Simple download experience for anyone</li>
                   <li>• Optional expiry + limits can be added later</li>
                 </ul>
+                {/* Security note */}
+                <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-900/15 dark:text-amber-200">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-lg dark:bg-amber-900/30">
+                      🔒
+                    </div>
+                    <div>
+                      <div className="font-extrabold">Security tip</div>
+                      <p className="mt-1 leading-relaxed">
+                        For extra privacy, upload your file as a{" "}
+                        <span className="font-bold">
+                          password-protected ZIP
+                        </span>
+                        . Only people with the password can open it. Share the
+                        password <span className="font-bold">separately</span>{" "}
+                        (e.g., WhatsApp/phone) — not in the same link message.
+                      </p>
+                      <p className="mt-2 text-xs opacity-80">
+                        Note: We can’t recover ZIP passwords if you forget them.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* UI demo only */}

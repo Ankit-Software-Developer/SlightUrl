@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Menu, X } from "lucide-react";
 import Button from "./Button";
+import Image from "next/image";
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -25,25 +26,36 @@ export default function Navbar() {
           : "bg-transparent"
       }`}
     >
-      <div className="container mx-auto px-4 py-3">
+      <div className="container mx-auto px-4">
         <div className="flex items-center justify-between">
           {/* Logo */}
           <Link href="/" className="group flex items-center gap-3">
             <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl blur opacity-75 group-hover:opacity-100 transition duration-300" />
-              <div className="relative h-10 w-10 grid place-items-center rounded-xl bg-gradient-to-r from-blue-600 to-purple-700 text-white font-bold text-xl">
-                S
-              </div>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                SlightURL
-              </h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                Short links, big insights
-              </p>
+              <Image
+                src="/logo1.png" // <-- put your logo in /public/logo.png
+                alt="SlightURL"
+                width={300}
+                height={80}
+                className="h-20 w-45 object-contain"
+                priority
+              />
             </div>
           </Link>
+          {/* <Link href="/" className="group flex items-center gap-3">
+            <div className="relative">
+              
+              <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-500/40 to-purple-600/40 blur-md opacity-60 group-hover:opacity-90 transition duration-300" />
+             
+              <Image
+                src="/logo.png" // <-- put your logo in /public/logo.png
+                alt="SlightURL"
+                width={300}
+                height={80}
+                className="h-20 w-45 object-contain"
+                priority
+              />
+            </div>
+          </Link> */}
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-8">

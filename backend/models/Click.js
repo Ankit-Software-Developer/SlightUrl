@@ -5,10 +5,10 @@ const Click = sequelize.define(
   "Click",
   {
     id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-    linkId: { type: DataTypes.INTEGER, allowNull: false },
+    linkId: { type: DataTypes.INTEGER, allowNull: false,field: "link_id" },
 
     ip: { type: DataTypes.STRING(64), allowNull: true },
-    userAgent: { type: DataTypes.TEXT, allowNull: true },
+    userAgent: { type: DataTypes.TEXT, allowNull: true,field: "user_agent"},
     referer: { type: DataTypes.TEXT, allowNull: true },
 
     country: { type: DataTypes.STRING(60), allowNull: true },

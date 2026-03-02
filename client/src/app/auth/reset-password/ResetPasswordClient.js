@@ -11,6 +11,7 @@ import Card from "@/components/Card";
 import Input from "@/components/Input";
 import Button from "@/components/Button";
 import { baseurl } from "@/utils/constant";
+import Image from "next/image";
 
 export default function ResetPasswordClient() {
   const searchParams = useSearchParams();
@@ -92,14 +93,15 @@ export default function ResetPasswordClient() {
               className="flex items-center justify-center gap-3"
             >
               <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl blur" />
-                <div className="relative h-12 w-12 grid place-items-center rounded-xl bg-gradient-to-r from-blue-600 to-purple-700 text-white font-bold text-2xl">
-                  S
-                </div>
+                <Image
+                  src="/logo1.png" // <-- put your logo in /public/logo.png
+                  alt="SlightURL"
+                  width={300}
+                  height={80}
+                  className="h-20 w-55 object-contain"
+                  priority
+                />
               </div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                SlightURL
-              </h1>
             </motion.div>
           </Link>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
@@ -108,7 +110,10 @@ export default function ResetPasswordClient() {
         </div>
 
         <div className="max-w-md mx-auto">
-          <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}>
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+          >
             <Card className="p-8 shadow-2xl border-0">
               <Link
                 href="/auth/login"
@@ -124,7 +129,9 @@ export default function ResetPasswordClient() {
                     <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
                       <Lock className="w-8 h-8 text-purple-600 dark:text-purple-400" />
                     </div>
-                    <h2 className="text-2xl md:text-3xl font-bold">Reset Password</h2>
+                    <h2 className="text-2xl md:text-3xl font-bold">
+                      Reset Password
+                    </h2>
                     <p className="text-gray-600 dark:text-gray-400 mt-2">
                       Create a new password for your account.
                     </p>
@@ -132,11 +139,13 @@ export default function ResetPasswordClient() {
                     {/* If link missing */}
                     {!token || !email ? (
                       <div className="mt-4 text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3">
-                        This reset link is missing required information. Please go back and request a new reset email.
+                        This reset link is missing required information. Please
+                        go back and request a new reset email.
                       </div>
                     ) : (
                       <p className="mt-3 text-xs text-gray-500 dark:text-gray-500 break-all">
-                        Resetting for: <span className="font-semibold">{email}</span>
+                        Resetting for:{" "}
+                        <span className="font-semibold">{email}</span>
                       </p>
                     )}
                   </div>
@@ -198,7 +207,10 @@ export default function ResetPasswordClient() {
 
                   <div className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
                     Remembered your password?{" "}
-                    <Link href="/auth/login" className="text-blue-600 dark:text-blue-400 hover:underline font-semibold">
+                    <Link
+                      href="/auth/login"
+                      className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                    >
                       Log in
                     </Link>
                   </div>
@@ -209,7 +221,9 @@ export default function ResetPasswordClient() {
                     <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
                       <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
                     </div>
-                    <h2 className="text-2xl md:text-3xl font-bold">Password Updated</h2>
+                    <h2 className="text-2xl md:text-3xl font-bold">
+                      Password Updated
+                    </h2>
                     <p className="text-gray-600 dark:text-gray-400 mt-2">
                       You can now log in with your new password.
                     </p>

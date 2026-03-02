@@ -16,6 +16,35 @@ const Link = sequelize.define(
 
     isActive: { type: DataTypes.BOOLEAN, defaultValue: true },
     clicks: { type: DataTypes.INTEGER, defaultValue: 0 },
+    status: {
+      type: DataTypes.ENUM("active", "pending", "disabled", "blocked"),
+      allowNull: false,
+      defaultValue: "active",
+    },
+
+    blockedReason: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: "blocked_reason",
+    },
+
+    createdIp: {
+      type: DataTypes.STRING(64),
+      allowNull: true,
+      field: "created_ip",
+    },
+
+    createdUa: {
+      type: DataTypes.STRING(512),
+      allowNull: true,
+      field: "created_ua",
+    },
+
+    lastCheckedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: "last_checked_at",
+    },
     expiresAt: {
       type: DataTypes.STRING(255),
       allowNull: true,

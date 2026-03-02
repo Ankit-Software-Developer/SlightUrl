@@ -1,38 +1,24 @@
-// jobs/cleanupExpiredFiles.js
-const cron = require("node-cron");
+// jobs/fileCleanup.js
 const fs = require("fs");
 const { Op } = require("sequelize");
-const { Files } = require("../models/File"); // adjust
+const Files = require("../models/File");
 
-function safeUnlink(p) {
-  try {
-    if (p && fs.existsSync(p)) fs.unlinkSync(p);
-  } catch (e) {
-    console.error("Failed to delete file:", p, e.message);
-  }
-}
+async function cleanupExpiredFiles() {
+  const now = new Date();
 
-function startCleanupJob() {
-  // every 30 minutes
-  cron.schedule("*/30 * * * *", async () => {
-    try {
-      const now = new Date();
-
-      const expired = await FileShare.findAll({
-        where: { expiresAt: { [Op.lte]: now } },
-        limit: 200,
-      });
-
-      for (const row of expired) {
-        safeUnlink(row.storedPath);
-        await row.destroy();
-      }
-
-      if (expired.length) console.log("Cleanup deleted:", expired.length);
-    } catch (e) {
-      console.error("Cleanup job error:", e);
-    }
+  const expired = await Files.findAll({
+    where: { expiresAt: { [Op.lte]: now } },
+    limit: 1000,
   });
+
+  for (const row of expired) {
+    if (row.storedPath) {
+      try { fs.unlinkSync(row.storedPath); } catch {}
+    }
+    try { await row.destroy(); } catch {}
+  }
+
+  return expired.length;
 }
 
-module.exports = { startCleanupJob };
+module.exports = { cleanupExpiredFiles };
